@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
-import { validateArticle } from '../middleware/validation.js';
+import { validateArticle, validateResearch } from '../middleware/validation.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 dotenv.config();
@@ -257,6 +257,130 @@ router.delete('/articles/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error deleting article:', error);
     res.status(500).json({ error: 'Failed to delete article' });
+  }
+});
+
+// Create new research
+router.post('/research', authenticateToken, upload.single('research_file'), validateResearch, async (req, res) => {
+  try {
+    const { title, abstract, authors, journal, publication_date } = req.body;
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'Research file is required' });
+    }
+    
+    const file_url = `/uploads/${req.file.filename}`;
+    
+    const { data, error } = await supabase
+      .from('researches')
+      .insert([
+        {
+          title,
+          abstract,
+          authors: JSON.parse(authors), // Convert JSON string to array
+          journal,
+          file_url,
+          publication_date,
+        }
+      ])
+      .select();
+    
+    if (error) throw error;
+    
+    res.status(201).json(data[0]);
+  } catch (error) {
+    console.error('Error creating research:', error);
+    res.status(500).json({ error: 'Failed to create research' });
+  }
+});
+
+// Update research
+router.put('/research/:id', authenticateToken, upload.single('research_file'), validateResearch, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, abstract, authors, journal, publication_date } = req.body;
+    
+    // Get the current research to check if file exists
+    const { data: existingResearch, error: fetchError } = await supabase
+      .from('researches')
+      .select('file_url')
+      .eq('id', id)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    let file_url = existingResearch.file_url;
+    
+    // Update file if a new one was uploaded
+    if (req.file) {
+      file_url = `/uploads/${req.file.filename}`;
+      
+      // Delete old file if it's a local file
+      if (existingResearch.file_url.startsWith('/uploads/')) {
+        const oldFilePath = path.join(__dirname, '..', '..', existingResearch.file_url);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+      }
+    }
+    
+    const { data, error } = await supabase
+      .from('researches')
+      .update({
+        title,
+        abstract,
+        authors: JSON.parse(authors), // Convert JSON string to array
+        journal,
+        file_url,
+        publication_date,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select();
+    
+    if (error) throw error;
+    
+    res.json(data[0]);
+  } catch (error) {
+    console.error('Error updating research:', error);
+    res.status(500).json({ error: 'Failed to update research' });
+  }
+});
+
+// Delete research
+router.delete('/research/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get the research to check if it has a local file to delete
+    const { data: research, error: fetchError } = await supabase
+      .from('researches')
+      .select('file_url')
+      .eq('id', id)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    // Delete the research
+    const { error } = await supabase
+      .from('researches')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    // Delete the file if it's a local file
+    if (research.file_url.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, '..', '..', research.file_url);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    
+    res.json({ message: 'Research deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting research:', error);
+    res.status(500).json({ error: 'Failed to delete research' });
   }
 });
 
