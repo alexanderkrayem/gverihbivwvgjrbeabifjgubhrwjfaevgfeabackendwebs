@@ -15,38 +15,34 @@ router.get('/', async (req, res) => {
   try {
     const { tag, search, limit = 12, page = 1 } = req.query;
     const offset = (page - 1) * limit;
-    
-    let query = supabase.from('articles').select('*', { count: 'exact' });
-    
-    // Tag filtering
-    if (tag) {
-      query = query.contains('tags', [tag]);
-    }
-    
-    // Advanced search using Full Text Search
+
+    let data, error;
+
     if (search) {
-      // Use PostgreSQL Full Text Search with trigram similarity
-      query = query.or(`
-        title.ilike.%${search}%,
-        excerpt.ilike.%${search}%,
-        content.ilike.%${search}%,
-        author.ilike.%${search}%
-      `);
+      ({ data, error } = await supabase.rpc('search_articles_advanced', {
+        search_query: search,
+        result_limit: parseInt(limit),
+        result_offset: offset
+      }));
+    } else {
+      let query = supabase.from('articles').select('*', { count: 'exact' });
+      if (tag) {
+        query = query.contains('tags', [tag]);
+      }
+      ({ data, error } = await query
+        .order('publication_date', { ascending: false })
+        .range(offset, offset + parseInt(limit) - 1));
     }
-    
-    const { data, error, count } = await query
-      .order('publication_date', { ascending: false })
-      .range(offset, offset + parseInt(limit) - 1);
-    
+
     if (error) throw error;
-    
+
     res.json({
       data,
       pagination: {
-        total: count,
+        total: data.length,
         page: parseInt(page),
         limit: parseInt(limit),
-        pages: Math.ceil(count / limit)
+        pages: Math.ceil(data.length / limit)
       }
     });
   } catch (error) {
@@ -54,6 +50,7 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch articles' });
   }
 });
+
 
 // Get featured articles
 router.get('/featured', async (req, res) => {
