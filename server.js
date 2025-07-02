@@ -10,6 +10,7 @@ import { dirname } from 'path';
 import articlesRoutes from './routes/articles.js';
 import researchRoutes from './routes/research.js';
 import adminRoutes from './routes/admin.js';
+import authorsRoutes from './routes/authors.js';
 
 // Middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -76,6 +77,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api/articles', articlesRoutes);
 app.use('/api/research', researchRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/authors', authorsRoutes);
 
 // 404 handler for API routes
 app.use('/api/*', (req, res) => {
