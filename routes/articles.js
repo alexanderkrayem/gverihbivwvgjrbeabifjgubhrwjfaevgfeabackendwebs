@@ -23,15 +23,9 @@ router.get('/', async (req, res) => {
       query = query.contains('tags', [tag]);
     }
     
-    // Advanced search using Full Text Search
+    // Simple search using ilike for better compatibility
     if (search) {
-      // Use PostgreSQL Full Text Search with trigram similarity
-      query = query.or(`
-        title.ilike.%${search}%,
-        excerpt.ilike.%${search}%,
-        content.ilike.%${search}%,
-        author.ilike.%${search}%
-      `);
+      query = query.or(`title.ilike.%${search}%,excerpt.ilike.%${search}%,content.ilike.%${search}%,author.ilike.%${search}%`);
     }
     
     const { data, error, count } = await query
@@ -54,7 +48,6 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch articles' });
   }
 });
-
 
 // Get featured articles
 router.get('/featured', async (req, res) => {
@@ -130,41 +123,6 @@ router.get('/:id/related', async (req, res) => {
   } catch (error) {
     console.error('Error fetching related articles:', error);
     res.status(500).json({ error: 'Failed to fetch related articles' });
-  }
-});
-
-// Search articles with advanced FTS
-router.get('/search/advanced', async (req, res) => {
-  try {
-    const { q, limit = 10, page = 1 } = req.query;
-    const offset = (page - 1) * limit;
-    
-    if (!q) {
-      return res.status(400).json({ error: 'Search query is required' });
-    }
-    
-    // Use PostgreSQL Full Text Search with ranking
-    const { data, error, count } = await supabase
-      .rpc('search_articles_fts', {
-        search_query: q,
-        result_limit: parseInt(limit),
-        result_offset: offset
-      });
-    
-    if (error) throw error;
-    
-    res.json({
-      data,
-      pagination: {
-        total: count,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(count / limit)
-      }
-    });
-  } catch (error) {
-    console.error('Error in advanced search:', error);
-    res.status(500).json({ error: 'Failed to perform advanced search' });
   }
 });
 

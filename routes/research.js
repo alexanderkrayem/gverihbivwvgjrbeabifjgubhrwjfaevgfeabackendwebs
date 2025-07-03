@@ -23,13 +23,9 @@ router.get('/', async (req, res) => {
       query = query.eq('journal', journal);
     }
     
-    // Advanced search using Full Text Search
+    // Simple search using ilike for better compatibility
     if (search) {
-      query = query.or(`
-        title.ilike.%${search}%,
-        abstract.ilike.%${search}%,
-        journal.ilike.%${search}%
-      `);
+      query = query.or(`title.ilike.%${search}%,abstract.ilike.%${search}%,journal.ilike.%${search}%`);
     }
     
     const { data, error, count } = await query
@@ -94,41 +90,6 @@ router.get('/journals/list', async (req, res) => {
   } catch (error) {
     console.error('Error fetching journals:', error);
     res.status(500).json({ error: 'Failed to fetch journals' });
-  }
-});
-
-// Search research papers with advanced FTS
-router.get('/search/advanced', async (req, res) => {
-  try {
-    const { q, limit = 10, page = 1 } = req.query;
-    const offset = (page - 1) * limit;
-    
-    if (!q) {
-      return res.status(400).json({ error: 'Search query is required' });
-    }
-    
-    // Use PostgreSQL Full Text Search with ranking
-    const { data, error, count } = await supabase
-      .rpc('search_research_fts', {
-        search_query: q,
-        result_limit: parseInt(limit),
-        result_offset: offset
-      });
-    
-    if (error) throw error;
-    
-    res.json({
-      data,
-      pagination: {
-        total: count,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(count / limit)
-      }
-    });
-  } catch (error) {
-    console.error('Error in advanced search:', error);
-    res.status(500).json({ error: 'Failed to perform advanced search' });
   }
 });
 

@@ -384,4 +384,166 @@ router.delete('/research/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Authors management routes
+
+// Create new author
+router.post('/authors', authenticateToken, upload.single('image'), async (req, res) => {
+  try {
+    const { 
+      name, 
+      bio, 
+      specialization, 
+      experience_years, 
+      education, 
+      location, 
+      email, 
+      website,
+      is_active 
+    } = req.body;
+    
+    let image = '';
+    
+    // If file was uploaded
+    if (req.file) {
+      image = `/uploads/${req.file.filename}`;
+    } else if (req.body.image_url) {
+      // If external URL was provided
+      image = req.body.image_url;
+    } else {
+      return res.status(400).json({ error: 'Author image is required' });
+    }
+    
+    const { data, error } = await supabase
+      .from('authors')
+      .insert([
+        {
+          name,
+          bio,
+          image,
+          specialization,
+          experience_years: parseInt(experience_years) || 1,
+          education,
+          location,
+          email: email || null,
+          website: website || null,
+          is_active: is_active === 'true',
+        }
+      ])
+      .select();
+    
+    if (error) throw error;
+    
+    res.status(201).json(data[0]);
+  } catch (error) {
+    console.error('Error creating author:', error);
+    res.status(500).json({ error: 'Failed to create author' });
+  }
+});
+
+// Update author
+router.put('/authors/:id', authenticateToken, upload.single('image'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      name, 
+      bio, 
+      specialization, 
+      experience_years, 
+      education, 
+      location, 
+      email, 
+      website,
+      is_active 
+    } = req.body;
+    
+    // Get the current author to check if image exists
+    const { data: existingAuthor, error: fetchError } = await supabase
+      .from('authors')
+      .select('image')
+      .eq('id', id)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    let image = existingAuthor.image;
+    
+    // Update image if a new one was uploaded
+    if (req.file) {
+      image = `/uploads/${req.file.filename}`;
+      
+      // Delete old image if it's a local file
+      if (existingAuthor.image.startsWith('/uploads/')) {
+        const oldImagePath = path.join(__dirname, '..', '..', existingAuthor.image);
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlinkSync(oldImagePath);
+        }
+      }
+    } else if (req.body.image_url) {
+      image = req.body.image_url;
+    }
+    
+    const { data, error } = await supabase
+      .from('authors')
+      .update({
+        name,
+        bio,
+        image,
+        specialization,
+        experience_years: parseInt(experience_years) || 1,
+        education,
+        location,
+        email: email || null,
+        website: website || null,
+        is_active: is_active === 'true',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select();
+    
+    if (error) throw error;
+    
+    res.json(data[0]);
+  } catch (error) {
+    console.error('Error updating author:', error);
+    res.status(500).json({ error: 'Failed to update author' });
+  }
+});
+
+// Delete author
+router.delete('/authors/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get the author to check if it has a local image to delete
+    const { data: author, error: fetchError } = await supabase
+      .from('authors')
+      .select('image')
+      .eq('id', id)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    // Delete the author
+    const { error } = await supabase
+      .from('authors')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    // Delete the image if it's a local file
+    if (author.image.startsWith('/uploads/')) {
+      const imagePath = path.join(__dirname, '..', '..', author.image);
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
+    }
+    
+    res.json({ message: 'Author deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting author:', error);
+    res.status(500).json({ error: 'Failed to delete author' });
+  }
+});
+
 export default router;
